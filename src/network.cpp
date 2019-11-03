@@ -76,6 +76,70 @@ std::vector<double> Network::recoveries() const {
     return vals;
 }
 
+std::vector<std::pair<size_t, double> > Network::neighbors(const size_t& n) const{
+	std::vector< std::pair<size_t, double> > Neighbors;
+	linkmap::const_iterator i1=links.lower_bound({n,0});
+	linkmap::const_iterator i2=links.lower_bound({n+1,0});
+	for(;i1->first!=i2->first;++i1) {
+		Neighbors.push_back(std::make_pair(i1->first.second,i1->second));
+	}	
+	return Neighbors;	
+}
+
+std::pair<size_t, double> Network::degree(const size_t& n) const{	
+	double valence(0.0);
+	size_t count(0);
+	linkmap::const_iterator i1=links.lower_bound({n,0});
+	linkmap::const_iterator i2=links.lower_bound({n+1,0});
+	for(;i1->first!=i2->first;++i1) {
+		++count;
+		valence+= i1->second;
+	}		
+	return std::make_pair(count,valence);
+}
+
+std::set<size_t> Network::step(const std::vector<double>& Jn){
+	std::set<size_t> firing_neurons;
+	std::vector<double> thal_inputs(Jn);
+	double M_ex(0.0);
+	double M_inhib(0.0);
+
+	if (Jn.size() == neurons.size()){
+		for(size_t i(0); i<neurons.size(); ++i){
+			if (neurons[i].firing()){
+				firing_neurons.insert(i);
+				neurons[i].reset();	
+				} 
+			
+			if (neurons[i].is_inhibitory()){ 
+				thal_inputs[i]=0.4*Jn[i];
+				}
+			
+			M_ex=0.0;
+			M_inhib=0.0;
+			std::vector<std::pair<size_t, double> > neighbors_f(neighbors(i));
+			
+			for(size_t j(0); j<neighbors_f.size(); ++j){
+				if(neurons[neighbors_f[j].first].firing()) {
+					if(neurons[neighbors_f[j].first].is_inhibitory()){
+						M_inhib += neighbors_f[j].second;
+					}else {
+						M_ex += neighbors_f[j].second;
+						}		
+				}
+			}
+			neurons[i].input(thal_inputs[i]+0.5*M_ex-M_inhib);
+		}
+	}
+	
+	for(size_t i(0); i<neurons.size(); ++i){
+		neurons[i].step();
+	}
+	
+	return firing_neurons;
+}
+
+
 void Network::print_params(std::ostream *_out) {
     (*_out) << "Type\ta\tb\tc\td\tInhibitory\tdegree\tvalence" << std::endl;
     for (size_t nn=0; nn<size(); nn++) {
